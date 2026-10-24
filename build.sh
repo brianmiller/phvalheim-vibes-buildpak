@@ -103,7 +103,11 @@ fi
 HOMEDIR="$OUT/oracle-home"
 # The pak mountpoint is created HERE: docker would mkdir it as root inside the bind
 # source, which an NFS export with root_squash refuses (measured on an NFS export with root_squash).
-rm -rf "$HOMEDIR"; mkdir -p "$HOMEDIR/downloads" "$HOMEDIR/buildpak/$VERSION"
+# Removed from inside a container as root: the oracles run as uid 1000 and leave files the host
+# user cannot delete (GitHub's runner is uid 1001; on this NFS tree docker-made mountpoints are
+# root-owned). A plain rm -rf here failed both ways.
+[ -d "$HOMEDIR" ] && docker run --rm -u 0:0 -v "$OUT:/o" "$RUNTIME_IMAGE" rm -rf /o/oracle-home
+mkdir -p "$HOMEDIR/downloads" "$HOMEDIR/buildpak/$VERSION"
 chmod 0777 "$HOMEDIR" "$HOMEDIR/downloads" "$HOMEDIR/buildpak" "$HOMEDIR/buildpak/$VERSION"   # the mountpoint too: umask 007 on this NFS made it 0770 and runc could not stat the pak through it
 
 # TMPDIR is the container's own /tmp, never the bind-mounted data dir: dotnet's first-run
@@ -137,7 +141,7 @@ run_rt -- bash -c "export LD_LIBRARY_PATH=$PAK_RUNTIME_DIR/git/usr/lib/x86_64-li
 ! grep -q '=> not found' "$OUT/ldd.out" || { echo "git needs a library the runtime image lacks" >&2; exit 1; }
 
 log "ORACLE 3: offline smoke build of the warmup plugin (--network none, uid 1000)"
-rm -rf "$HOMEDIR/smoke"; cp -r "$ROOT/warmup" "$HOMEDIR/smoke"; chmod -R a+rwX "$HOMEDIR/smoke"
+cp -r "$ROOT/warmup" "$HOMEDIR/smoke"; chmod -R a+rwX "$HOMEDIR/smoke"
 run_rt --network none -- bash -euo pipefail -c "
   eval \"\$($PAK_RUNTIME_DIR/selftest.sh env)\"
   cd /opt/stateful/vibes/smoke
@@ -155,7 +159,7 @@ run_rt --network none -- bash -euo pipefail -c "
 grep -q '^smoke: ' "$OUT/smoke.out"
 grep -qx 'references \[BepInEx\]' "$OUT/smoke.out"
 grep -qx 'references \[0Harmony\]' "$OUT/smoke.out"
-rm -rf "$HOMEDIR/smoke"
+run_rt -- rm -rf /opt/stateful/vibes/smoke   # as uid 1000, the owner of what the build wrote
 
 # ---- 6. result ------------------------------------------------------------
 log "RESULT"
