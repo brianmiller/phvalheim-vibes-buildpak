@@ -1,0 +1,129 @@
+# Build, scan and (on a tag) release the Hugin's Vibes Build Pak.
+#
+# Triggers
+#   push tag v*         build + oracles + Trivy, then a GitHub release with the three assets
+#   workflow_dispatch   the same build (no release) + an upstream check
+#   schedule (weekly)   the same build (no release) + an upstream check that opens a PR
+#                       when a component pin moved (design section 8: a new pak is
+#                       released only when `components` changed)
+#
+# Secrets: GITHUB_TOKEN only. Nothing is pushed to Docker Hub; the pak is a tarball.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * 1'   # Mondays 06:17 UTC; off the hour to dodge the GitHub cron rush
+
+permissions:
+  contents: write        # create the release, push the bump branch
+  pull-requests: write   # open the bump PR
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # The oracles pull theoriginalbrian/phvalheim-server:rc (public, ~1 GB) and run
+      # the selftest and the offline smoke build INSIDE it as uid 1000. If either
+      # fails, build.sh exits non-zero and nothing below runs.
+      - name: Build the pak and run the runtime-image oracles
+        run: ./build.sh
+
+      - name: Tag must equal VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          [ "${GITHUB_REF_NAME}" = "v$v" ] || { echo "tag ${GITHUB_REF_NAME} but VERSION is $v" >&2; exit 1; }
+
+      # Trivy scans the EXTRACTED pak (filesystem mode: the dotnet SDK's bundled
+      # NuGet/npm manifests, the dpkg'd git, the tool DLLs). exit-code is 0 ON PURPOSE
+      # for now: the report is uploaded for review, but a finding does not block a
+      # release. Why: a pak is only as fresh as Microsoft's SDK patch cadence and
+      # jammy's security pocket -- the fix for a HIGH in the SDK is "ship the next
+      # SDK", which is exactly what the weekly bump PR does; blocking here would only
+      # keep operators on an OLDER pak with the same finding. Flip to exit-code 1
+      # once the pin cadence has proven it can keep the list at zero.
+      - name: Trivy (filesystem scan of the extracted pak)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: out/extracted
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          format: table
+          output: out/trivy-report.txt
+
+      - name: Show the Trivy report
+        run: cat out/trivy-report.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: buildpak-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            out/*.tar.gz
+            out/*.tar.gz.sha256
+            out/manifest.json
+            out/selftest.out
+            out/smoke.out
+            out/ldd.out
+            out/trivy-report.txt
+
+      # The server's installer (design section 6.1) reads the release's manifest.json
+      # asset for pakFormat/base/sizeBytes, the .sha256 asset to verify the download,
+      # and the tarball itself. All three must be on the release.
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          files: |
+            out/phvalheim-vibes-buildpak-*-linux-x64.tar.gz
+            out/phvalheim-vibes-buildpak-*-linux-x64.tar.gz.sha256
+            out/manifest.json
+
+  check-upstreams:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Re-resolve pins
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./check-upstreams.sh --write
+
+      # One long-lived branch, force-pushed: a second week with the same drift
+      # updates the open PR instead of opening another. `gh pr create` needs
+      # "Allow GitHub Actions to create and approve pull requests" enabled in the
+      # repository's Actions settings (README: Releasing).
+      - name: Open or refresh the bump PR
+        if: steps.check.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch=bump/pins
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add pins.env VERSION
+          git commit -m "Bump component pins to $(tr -d '[:space:]' < VERSION)" -m "$(git diff HEAD~1 -- pins.env | grep '^[-+][A-Z]' || true)"
+          git push -f origin "$branch"
+          body="$(printf 'Weekly upstream check found moved pins.\n\n```diff\n%s\n```\n\nMerging and tagging `v%s` releases a new pak.' \
+                   "$(git diff HEAD~1 -- pins.env VERSION)" "$(tr -d '[:space:]' < VERSION)")"
+          if gh pr list --head "$branch" --state open --json number --jq 'length' | grep -qx 0; then
+            gh pr create --head "$branch" --base "${GITHUB_REF_NAME}" \
+              --title "Bump component pins to $(tr -d '[:space:]' < VERSION)" --body "$body"
+          else
+            gh pr edit "$branch" --body "$body"
+          fi

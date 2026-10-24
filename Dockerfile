@@ -221,6 +221,7 @@ RUN chmod 0755 /pak/selftest.sh \
 # ---------------------------------------------------------------------------
 ARG PAK_VERSION
 ARG BUILT_AT
+COPY manifest.jq /src/manifest.jq
 RUN test -n "${PAK_VERSION}" && test -n "${BUILT_AT}" \
  && jq -n \
       --argjson pakFormat 1 \
@@ -242,33 +243,7 @@ RUN test -n "${PAK_VERSION}" && test -n "${BUILT_AT}" \
       --arg binPub "tools/$(cat /facts/toolbin.publicizer)" \
       --arg shaDotnet "$(cat /facts/dotnet-sdk.sha256)" \
       --arg shaBepinex "$(cat /facts/bepinex.sha256)" \
-      '{
-        pakFormat: $pakFormat,
-        version: $version,
-        base: $base,
-        arch: "x64",
-        builtAt: $builtAt,
-        components: {
-          "dotnet-sdk": $dotnet,
-          "dotnet-channel": $dotnetChannel,
-          "git": $git,
-          "libcurl3-gnutls": $libcurl,
-          "liberror-perl": $liberror,
-          "bepinex": $bepinex,
-          "harmonyx": $harmonyx,
-          "publicizer": $publicizer,
-          "ilspycmd": $ilspycmd,
-          "netframework-referenceassemblies": $refasm,
-          "nuget-cache": $nugetCache,
-          "toolBins": { "ilspycmd": $binIlspy, "publicizer": $binPub }
-        },
-        sha256: {
-          "dotnet-sdk-tarball": $shaDotnet,
-          "bepinex-zip": $shaBepinex
-        },
-        sizeBytes: null,
-        selftest: "selftest.sh"
-      }' > /pak/manifest.json \
+      -f /src/manifest.jq > /pak/manifest.json \
  && cat /pak/manifest.json \
  # the builder is jammy like the runtime; a failing selftest here saves a 200 MB export
  && /pak/selftest.sh

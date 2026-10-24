@@ -1,0 +1,110 @@
+Hugin's Vibes Build Pak -- licensing
+
+The build scripts in this repository (Dockerfile, build.sh, check-upstreams.sh,
+pak/selftest.sh, manifest.jq, warmup/, the workflow) are:
+
+  Copyright (c) 2026 Brian Miller
+  MIT License -- see "MIT License (this repository)" below.
+
+The RELEASED TARBALL (phvalheim-vibes-buildpak-<version>-linux-x64.tar.gz) is an
+AGGREGATE of third-party software redistributed unmodified in binary form. Each
+component keeps its own license, reproduced or referenced below. The versions are
+in the tarball's manifest.json (components.*).
+
+------------------------------------------------------------------------------
+dotnet/   .NET SDK (Microsoft)                                   MIT License
+------------------------------------------------------------------------------
+  https://github.com/dotnet/sdk  --  https://github.com/dotnet/runtime
+  Copyright (c) .NET Foundation and Contributors. Licensed under the MIT License;
+  the full text ships inside the pak as dotnet/LICENSE.txt and
+  dotnet/ThirdPartyNotices.txt. Microsoft's own binary redistribution terms:
+  https://github.com/dotnet/core/blob/main/license-information.md
+  The pak omits dotnet/sdk/<ver>/FSharp, dotnet/shared/Microsoft.AspNetCore.App
+  and dotnet/packs/Microsoft.AspNetCore.App.Ref (unused by a BepInEx plugin build).
+
+------------------------------------------------------------------------------
+git/      git 2.34 and libcurl3-gnutls, liberror-perl (Ubuntu jammy packages)
+------------------------------------------------------------------------------
+  git ................. GNU General Public License v2.0 (GPLv2), with some files
+                        under LGPL v2.1+ (see git's COPYING and LGPL-2.1)
+  libcurl3-gnutls ..... curl license (MIT/X derivative)
+  liberror-perl ....... MIT-style (Error.pm, same terms as Perl: Artistic/GPL)
+
+  WRITTEN OFFER OF SOURCE (GPLv2 section 3(b)):
+  The git binaries in this pak are Ubuntu's unmodified builds of the source
+  package `git` version <components.git> for Ubuntu 22.04 (jammy), extracted
+  from the .deb with `dpkg -x`. The complete corresponding source code is
+  published by Ubuntu at
+
+      https://launchpad.net/ubuntu/+source/git
+      https://launchpad.net/ubuntu/jammy/+source/git/<version>
+
+  and is obtainable on any Ubuntu 22.04 system with `apt-get source git`.
+  In addition, for a period of three years from the date of each Build Pak
+  release, anyone in possession of that release may obtain a copy of the
+  complete corresponding source for git, libcurl3-gnutls and liberror-perl, on
+  physical media for no more than the cost of shipping, by opening an issue at
+  https://github.com/brianmiller/phvalheim-vibes-buildpak/issues with the pak
+  version number. The GPLv2 text is at
+  https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt and inside the Ubuntu
+  source package (COPYING).
+
+------------------------------------------------------------------------------
+bepinex/  BepInEx 5 core DLLs                     GNU Lesser General Public License v2.1
+------------------------------------------------------------------------------
+  https://github.com/BepInEx/BepInEx  --  Copyright (c) 2018 Bepis.
+  BepInEx.dll, BepInEx.Preloader.dll, BepInEx.Harmony.dll are LGPL-2.1; the zip's
+  core folder also contains 0Harmony.dll / 0Harmony20.dll / HarmonyXInterop.dll
+  (HarmonyX, MIT, https://github.com/BepInEx/HarmonyX), Mono.Cecil*.dll (MIT,
+  https://github.com/jbevain/cecil) and MonoMod.*.dll (MIT,
+  https://github.com/MonoMod/MonoMod). Redistributed unmodified; LGPL text:
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt. Source for the exact
+  version: https://github.com/BepInEx/BepInEx/releases/tag/v<components.bepinex>
+
+------------------------------------------------------------------------------
+tools/    ilspycmd (ICSharpCode.Decompiler, ILSpy project)        MIT License
+------------------------------------------------------------------------------
+  https://github.com/icsharpcode/ILSpy  --  Copyright (c) AlphaSierraPapa and
+  contributors. The ILSpy decompiler libraries are MIT; the ilspycmd nupkg's
+  LICENSE is in tools/.store/ilspycmd/<ver>/.
+
+------------------------------------------------------------------------------
+tools/    BepInEx.AssemblyPublicizer.Cli                          MIT License
+------------------------------------------------------------------------------
+  https://github.com/BepInEx/BepInEx.AssemblyPublicizer  --  Copyright (c) 2023
+  BepInEx. LICENSE in tools/.store/bepinex.assemblypublicizer.cli/<ver>/.
+
+------------------------------------------------------------------------------
+nuget/    Microsoft.NETFramework.ReferenceAssemblies               MIT License
+------------------------------------------------------------------------------
+  https://github.com/dotnet/reference-assemblies  --  .NET Foundation. The
+  .NET Framework reference assemblies are redistributable under MIT
+  (LICENSE.txt inside the package).
+
+------------------------------------------------------------------------------
+What is NOT in the pak and why (design section 1)
+------------------------------------------------------------------------------
+  No Valheim assembly (assembly_valheim.dll, assembly_*.dll), no UnityEngine*.dll,
+  no game data. They are Iron Gate / Unity Technologies copyrighted material and
+  may not be redistributed. The server harvests them from a world's own
+  dedicated-server install, which every operator already has a license for.
+
+------------------------------------------------------------------------------
+MIT License (this repository)
+------------------------------------------------------------------------------
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
