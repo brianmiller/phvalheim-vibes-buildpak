@@ -145,6 +145,12 @@ RUN export NUGET_PACKAGES=/tmp/nuget-tools \
  && awk 'tolower($1)=="bepinex.assemblypublicizer.cli"{print $3}' /facts/tool-list.out > /facts/toolbin.publicizer \
  && test -x "/pak/tools/$(cat /facts/toolbin.ilspycmd)" \
  && test -x "/pak/tools/$(cat /facts/toolbin.publicizer)" \
+ # A tool built for an OLDER runtime (the publicizer is net6.0) does NOT roll forward to
+ # 8.0 by default: measured 2026-10-24, the apphost refused with "You must install .NET
+ # ... version 6.0.0". rollForward=Major in each tool's own runtimeconfig.json fixes it
+ # INSIDE the pak, so the server needs no DOTNET_ROLL_FORWARD in its environment.
+ && find /pak/tools/.store -name '*.runtimeconfig.json' -print -exec sh -c \
+      'jq ".runtimeOptions.rollForward = \"Major\"" "$1" > "$1.tmp" && mv "$1.tmp" "$1"' _ {} \; \
  # the shims must not bake in /pak: the pak lives at /opt/stateful/vibes/buildpak/<ver> on the server
  && if find /pak/tools -maxdepth 1 -type f -exec grep -l "/pak/" {} + ; then echo "tool shim embeds the build path /pak" >&2; exit 1; fi \
  # prove each tool STARTS on this runtime (a net10.0 tool would fail right here)
