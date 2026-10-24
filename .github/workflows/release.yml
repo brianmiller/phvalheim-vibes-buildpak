@@ -78,12 +78,29 @@ jobs:
       # The server's installer (design section 6.1) reads the release's manifest.json
       # asset for pakFormat/base/sizeBytes, the .sha256 asset to verify the download,
       # and the tarball itself. All three must be on the release.
-      - name: GitHub release
+      # A release that ALREADY carries the tarball is left alone: the first pak of a cycle is
+      # published by hand from a locally oracle-verified build (the 2.59 dev box did exactly
+      # that), and this run's job is then to verify the tag independently -- not to swap the
+      # asset operators may already have downloaded for a byte-different rebuild.
+      - name: Is the release already published with its tarball?
+        id: existing
         if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' 2>/dev/null | grep -q 'linux-x64.tar.gz$'; then
+            echo "published=1" >> "$GITHUB_OUTPUT"; echo "release ${GITHUB_REF_NAME} already has its tarball; this run only verified it"
+          else
+            echo "published=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v') && steps.existing.outputs.published != '1'
         uses: softprops/action-gh-release@v2
         with:
           fail_on_unmatched_files: true
           generate_release_notes: true
+          # v1.2.3-rc1 / v1.2.3-pre2 are pre-releases; a bare vX.Y.Z is a release.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             out/phvalheim-vibes-buildpak-*-linux-x64.tar.gz
             out/phvalheim-vibes-buildpak-*-linux-x64.tar.gz.sha256

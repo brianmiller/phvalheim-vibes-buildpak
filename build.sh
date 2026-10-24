@@ -101,7 +101,10 @@ fi
 # A writable HOME for uid 1000, OUTSIDE the read-only pak, exactly like the server
 # (HOME=/opt/stateful/vibes, pak under it).
 HOMEDIR="$OUT/oracle-home"
-rm -rf "$HOMEDIR"; mkdir -p "$HOMEDIR/downloads"; chmod 0777 "$HOMEDIR" "$HOMEDIR/downloads"
+# The pak mountpoint is created HERE: docker would mkdir it as root inside the bind
+# source, which an NFS export with root_squash refuses (measured on an NFS export with root_squash).
+rm -rf "$HOMEDIR"; mkdir -p "$HOMEDIR/downloads" "$HOMEDIR/buildpak/$VERSION"
+chmod 0777 "$HOMEDIR" "$HOMEDIR/downloads" "$HOMEDIR/buildpak" "$HOMEDIR/buildpak/$VERSION"   # the mountpoint too: umask 007 on this NFS made it 0770 and runc could not stat the pak through it
 
 run_rt() {  # run_rt <extra docker args...> -- <cmd...>
   local dargs=()
