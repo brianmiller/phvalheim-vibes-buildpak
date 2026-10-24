@@ -52,11 +52,19 @@ export LD_LIBRARY_PATH="$PAK/git/usr/lib/x86_64-linux-gnu:$PAK/git/usr/lib${LD_L
 # Error.pm (liberror-perl) for git's perl helpers (git add -p on 2.34 is still perl).
 export PERL5LIB="$PAK/git/usr/share/perl5${PERL5LIB:+:$PERL5LIB}"
 export LANG=C.UTF-8 LC_ALL=C.UTF-8
+# A NAMED MUTEX (NuGet's "NuGet-Migrations", taken by every restore) is backed by a file that
+# .NET 8 on Linux puts under $XDG_RUNTIME_DIR -- or, when that is unset, under the user's
+# /etc/passwd HOME, which must already exist and be writable (coreclr pal/sharedmemory.cpp).
+# In the server image uid 1000's passwd home is /opt, owned by root, so without this every
+# build died with "The system cannot open the device or file specified : 'NuGet-Migrations'"
+# while the same build as root passed. A private, writable, container-local directory.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/vibes-run-$(id -u)}"
+mkdir -p -m 0700 "$XDG_RUNTIME_DIR"
 
 if [ "${1:-}" = "env" ]; then
   for v in PATH DOTNET_ROOT DOTNET_CLI_HOME DOTNET_CLI_TELEMETRY_OPTOUT DOTNET_NOLOGO \
            DOTNET_SKIP_FIRST_TIME_EXPERIENCE DOTNET_SYSTEM_GLOBALIZATION_INVARIANT \
-           NUGET_PACKAGES GIT_EXEC_PATH GIT_TEMPLATE_DIR LD_LIBRARY_PATH PERL5LIB LANG LC_ALL; do
+           NUGET_PACKAGES GIT_EXEC_PATH GIT_TEMPLATE_DIR LD_LIBRARY_PATH PERL5LIB LANG LC_ALL XDG_RUNTIME_DIR; do
     printf 'export %s=%q\n' "$v" "${!v}"
   done
   # the caller keeps its own HOME; we only created a scratch one for ourselves

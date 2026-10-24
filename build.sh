@@ -106,13 +106,18 @@ HOMEDIR="$OUT/oracle-home"
 rm -rf "$HOMEDIR"; mkdir -p "$HOMEDIR/downloads" "$HOMEDIR/buildpak/$VERSION"
 chmod 0777 "$HOMEDIR" "$HOMEDIR/downloads" "$HOMEDIR/buildpak" "$HOMEDIR/buildpak/$VERSION"   # the mountpoint too: umask 007 on this NFS made it 0770 and runc could not stat the pak through it
 
+# TMPDIR is the container's own /tmp, never the bind-mounted data dir: dotnet's first-run
+# NuGet migration takes a NAMED MUTEX, which lives as a file under $TMPDIR/.dotnet/shm, and on
+# an NFS-backed directory that open fails with "The system cannot open the device or file
+# specified: 'NuGet-Migrations'" (observed here: the oracle home is on NFS). The server's
+# runner sets the same (phvalheim-server tools/vibes/lib/env.php).
 run_rt() {  # run_rt <extra docker args...> -- <cmd...>
   local dargs=()
   while [ "$1" != "--" ]; do dargs+=("$1"); shift; done; shift
   docker run --rm -u 1000:1000 \
     -v "$HOMEDIR:/opt/stateful/vibes" \
     -v "$EXTRACTED:$PAK_RUNTIME_DIR:ro" \
-    -e HOME=/opt/stateful/vibes -e TMPDIR=/opt/stateful/vibes/downloads \
+    -e HOME=/opt/stateful/vibes -e TMPDIR=/tmp \
     "${dargs[@]}" "$RUNTIME_IMAGE" "$@"
 }
 
@@ -127,7 +132,9 @@ log "ORACLE 2: git-remote-https to github.com from inside the runtime image"
 run_rt -e SELFTEST_HOME=/opt/stateful/vibes -e SELFTEST_NETWORK=1 -- "$PAK_RUNTIME_DIR/selftest.sh" | grep -x 'git-remote-https=ok'
 # ldd verdict, verbatim, for the report: every library git needs must resolve in THIS image
 run_rt -- bash -c "export LD_LIBRARY_PATH=$PAK_RUNTIME_DIR/git/usr/lib/x86_64-linux-gnu; for b in $PAK_RUNTIME_DIR/git/usr/bin/git $PAK_RUNTIME_DIR/git/usr/lib/git-core/git-remote-https; do echo \"ldd \$(basename \$b): \$(ldd \$b | grep -c 'not found') not found\"; ldd \$b | grep 'not found' || true; done; echo \"libcurl-gnutls -> \$(ldd $PAK_RUNTIME_DIR/git/usr/lib/git-core/git-remote-https | awk '/libcurl-gnutls/{print \$3}')\"" | tee "$OUT/ldd.out"
-! grep -q 'not found$' "$OUT/ldd.out" || { echo "git needs a library the runtime image lacks" >&2; exit 1; }
+# ldd's own line shape ("libfoo.so.1 => not found"), never a bare 'not found$': the summary
+# line "ldd git: 0 not found" matched that and failed a perfectly clean run.
+! grep -q '=> not found' "$OUT/ldd.out" || { echo "git needs a library the runtime image lacks" >&2; exit 1; }
 
 log "ORACLE 3: offline smoke build of the warmup plugin (--network none, uid 1000)"
 rm -rf "$HOMEDIR/smoke"; cp -r "$ROOT/warmup" "$HOMEDIR/smoke"; chmod -R a+rwX "$HOMEDIR/smoke"
@@ -140,11 +147,14 @@ run_rt --network none -- bash -euo pipefail -c "
   test -f bin/Release/net472/VibesSmoke.dll
   echo \"smoke: \$(stat -c %s bin/Release/net472/VibesSmoke.dll) bytes\"
   # the DLL must reference BepInEx and 0Harmony (proves the HintPaths resolved, not a stub build)
-  $PAK_RUNTIME_DIR/tools/ilspycmd -il bin/Release/net472/VibesSmoke.dll | grep -E '^\.assembly extern (BepInEx|0Harmony)' | sort
+  # ilspycmd -il prints type bodies, not the assembly manifest, so a referenced assembly shows up
+  # as the [Assembly]Type prefix on every use; one line per referenced assembly is enough. IL quotes
+  # a name that starts with a digit (['0Harmony']); the .? and tr strip the quotes.
+  $PAK_RUNTIME_DIR/tools/ilspycmd -il bin/Release/net472/VibesSmoke.dll | grep -oE '\[.?(BepInEx|0Harmony).?\]' | tr -d \\' | sort -u | sed 's/^/references /'
 " | tee "$OUT/smoke.out"
 grep -q '^smoke: ' "$OUT/smoke.out"
-grep -q 'assembly extern BepInEx' "$OUT/smoke.out"
-grep -q 'assembly extern 0Harmony' "$OUT/smoke.out"
+grep -qx 'references \[BepInEx\]' "$OUT/smoke.out"
+grep -qx 'references \[0Harmony\]' "$OUT/smoke.out"
 rm -rf "$HOMEDIR/smoke"
 
 # ---- 6. result ------------------------------------------------------------
