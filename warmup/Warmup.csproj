@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The warm-up / smoke project. Two jobs:
+      1. In the builder: `dotnet restore` of THIS file populates the pak's nuget/
+         cache with exactly what a BepInEx plugin needs to compile a net472 class
+         library on Linux: Microsoft.NETFramework.ReferenceAssemblies (the .NET
+         Framework reference assemblies, since no Mono/.NET Framework is installed).
+      2. In build.sh: the same project is compiled INSIDE the runtime image with
+         `-\-network none`, referencing BepInEx.dll and 0Harmony.dll from the pak via
+         $(BepInExDir). No Valheim or Unity assembly is referenced: the pak carries
+         none (design section 1), so the smoke plugin avoids every type that
+         derives from UnityEngine (BaseUnityPlugin is one; see Plugin.cs).
+    Kept minimal on purpose: every extra PackageReference is more to download for
+    every operator and more to keep offline-restorable.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>VibesSmoke</AssemblyName>
+    <RootNamespace>VibesSmoke</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultItems>true</EnableDefaultItems>
+    <!-- a plugin DLL must not drag its references along -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <!-- deterministic, no satellite assemblies, no implicit usings: nothing surprising in bin/ -->
+    <Deterministic>true</Deterministic>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- where BepInEx.dll / 0Harmony.dll live; build.sh passes -p:BepInExDir=<pak>/bepinex -->
+    <!-- pinned in pins.env (REFASM_VERSION); the Dockerfile and build.sh pass it -->
+    <RefAsmVersion Condition="'$(RefAsmVersion)' == ''">1.0.3</RefAsmVersion>
+    <BepInExDir Condition="'$(BepInExDir)' == ''">$(MSBuildThisFileDirectory)../out/extracted/bepinex</BepInExDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- PrivateAssets=all keeps the reference-assembly package out of the plugin's own dependency graph -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="$(RefAsmVersion)" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExDir)/BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExDir)/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

@@ -189,12 +189,12 @@ RUN url="https://github.com/BepInEx/BepInEx/releases/download/v${BEPINEX_VERSION
 # ---------------------------------------------------------------------------
 COPY warmup/ /src/warmup/
 RUN export NUGET_PACKAGES=/pak/nuget \
- && dotnet restore /src/warmup/Warmup.csproj --configfile /src/warmup/NuGet.online.Config -nologo -v minimal \
+ && dotnet restore /src/warmup/Warmup.csproj --configfile /src/warmup/NuGet.online.Config -nologo -v minimal "-p:RefAsmVersion=${REFASM_VERSION}" \
  && test -d "/pak/nuget/microsoft.netframework.referenceassemblies.net472/${REFASM_VERSION}" \
  && rm -rf /src/warmup/obj \
  && cp -r /src/warmup /tmp/offline \
  && printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' '    <clear />' '    <add key="pak" value="/pak/nuget" />' '  </packageSources>' '</configuration>' > /tmp/offline/NuGet.Config \
- && NUGET_PACKAGES=/tmp/nuget-empty dotnet restore /tmp/offline/Warmup.csproj --configfile /tmp/offline/NuGet.Config --no-cache -nologo -v minimal \
+ && NUGET_PACKAGES=/tmp/nuget-empty dotnet restore /tmp/offline/Warmup.csproj --configfile /tmp/offline/NuGet.Config --no-cache -nologo -v minimal "-p:RefAsmVersion=${REFASM_VERSION}" \
  && rm -rf /tmp/offline /tmp/nuget-empty \
  # the cache must be byte-identical to what the warm-up produced; hash it for the manifest
  && (cd /pak/nuget && find . -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1) > /facts/nuget-cache.sha256
