@@ -9,6 +9,14 @@ opt-in: an operator who never vibes never downloads it.
 
 Design: `phvalheim-server/docs/HUGINS-VIBES-DESIGN.md`, sections 1, 3, 6 and 8.
 
+## Contributing
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents should read
+[AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md) too. Brian must approve every
+revision before merge. Track work in [GitHub Issues](https://github.com/brianmiller/phvalheim-vibes-buildpak/issues);
+review dynamic pages and related documentation on every contribution.
+Report vulnerabilities privately using [SECURITY.md](SECURITY.md).
+
 ## What is in it
 
 ```
